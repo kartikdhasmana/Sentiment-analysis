@@ -1,51 +1,40 @@
-from flask import Flask, render_template, request
-import pickle
+import streamlit as st
+import joblib  # or use pickle if needed
 import re
-import nltk
-from nltk.stem.porter import PorterStemmer
-from nltk.corpus import stopwords
-stopwords_set = set(stopwords.words('english'))
-emoticon_pattern = re.compile('(?::|;|=)(?:-)?(?:\)|\(|D|P)')
+import string
 
+# Load the trained model and vectorizer
+model = joblib.load("sentiment_model.pkl")  # Make sure this file exists
+vectorizer = joblib.load("count_vectorizer.pkl")  # If using TF-IDF or CountVectorizer
 
-app = Flask(__name__)
+# Text Preprocessing Function
+def preprocess_text(text):
+    text = text.lower()  # Lowercasing
+    text = re.sub(r'\d+', '', text)  # Remove numbers
+    text = text.translate(str.maketrans("", "", string.punctuation))  # Remove punctuation
+    text = text.strip()  # Remove whitespace
+    return text
 
-# Load the sentiment analysis model and TF-IDF vectorizer
-with open('clf.pkl', 'rb') as f:
-    clf = pickle.load(f)
-with open('tfidf.pkl', 'rb') as f:
-    tfidf = pickle.load(f)
+# Streamlit UI
+st.title("📝 Sentiment Analysis App")
+st.write("This app predicts whether a given text is **Positive** or **Negative**.")
 
+# User Input
+user_input = st.text_area("Enter a sentence for sentiment analysis:")
 
-
-
-
-def preprocessing(text):
-    text = re.sub('<[^>]*>', '', text)
-    emojis = emoticon_pattern.findall(text)
-    text = re.sub('[\W+]', ' ', text.lower()) + ' '.join(emojis).replace('-', '')
-    prter = PorterStemmer()
-    text = [prter.stem(word) for word in text.split() if word not in stopwords_set]
-
-    return " ".join(text)
-
-@app.route('/', methods=['GET', 'POST'])
-def analyze_sentiment():
-    if request.method == 'POST':
-        comment = request.form.get('comment')
-
-        # Preprocess the comment
-        preprocessed_comment = preprocessing(comment)
-
-        # Transform the preprocessed comment into a feature vector
-        comment_vector = tfidf.transform([preprocessed_comment])
-
-        # Predict the sentiment
-        sentiment = clf.predict(comment_vector)[0]
-
-        return render_template('index.html', sentiment=sentiment)
-
-    return render_template('index.html')
-
-if __name__ == '__main__':
-    app.run(debug=True)
+if st.button("Analyze Sentiment"):
+    if user_input:
+        # Preprocess input
+        processed_text = preprocess_text(user_input)
+        
+        # Transform text using vectorizer
+        input_vector = vectorizer.transform([processed_text])
+        
+        # Make prediction
+        prediction = model.predict(input_vector)[0]
+        
+        # Display Result
+        sentiment = "😊 Positive" if prediction == 0 else "😞 Negative"
+        st.subheader(f"Sentiment: {sentiment}")
+    else:
+        st.warning("Please enter text to analyze.")
